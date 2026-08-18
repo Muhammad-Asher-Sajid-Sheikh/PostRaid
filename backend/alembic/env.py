@@ -16,9 +16,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 load_dotenv()
 
 # 3. Use Absolute Imports (DO NOT use relative ".." imports here)
-from src.services.database import Base
+#from src.services.database import Base
 from src.config.settings import settings
-from backend.src.models.db import Post  # Explicit import registers Post model with Base.metadata
+from src.models.db import Base
+from src.models.db import Post  # Explicit import registers Post model with Base.metadata
+from src.models.db import Event
+from src.models.db import Prompt
+from src.models.db import PublishLog
 
 # Alembic Config object
 config = context.config
