@@ -65,8 +65,8 @@ IMAGE_DIR = "../images"
 
 def improvisePrompt(Prompt):
     llm = ChatGoogleGenerativeAI(
-        api_key = os.getenv("GEMINI-API-KEY"),
-        model = os.getenv("GEMINI-MODEL"),
+        api_key = os.getenv("GEMINI_API_KEY"),
+        model = os.getenv("GEMINI_MODEL"),
         temperature = 0.3
     )
 
@@ -120,7 +120,7 @@ def generate_image(ppt: str, image_name: str) -> str:
     # Generate image using raw prompt string and a valid model target
     image = client.text_to_image(
         prompt=prompt,
-        model= os.getenv("MODEL-NAME")
+        model= os.getenv("MODEL_NAME")
     )
 
     save_path = os.path.join(IMAGE_DIR, image_name)
