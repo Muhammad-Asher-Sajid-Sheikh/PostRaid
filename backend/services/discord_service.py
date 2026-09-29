@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import discord
 import httpx
 from discord.ext import commands
@@ -7,10 +8,12 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+load_dotenv()
+
 # Load configuration from environment variables
-BOT_TOKEN = os.getenv("POSTRAID_DISCORD_ALERT_BOT", "YOUR_BOT_TOKEN")
-CHANNEL_ID = int(os.getenv("POSTRAID_DISCORD_CHANNEL_ID", "123456789012345678"))
-USER_ID = int(os.getenv("POSTRAID_DISCORD_USER_ID", "123456789012345678"))
+BOT_TOKEN = os.getenv("POSTRAID_DISCORD_ALERT_BOT")
+CHANNEL_ID = int(os.getenv("POSTRAID_DISCORD_CHANNEL_ID"))
+USER_ID = int(os.getenv("POSTRAID_DISCORD_USER_ID"))
 
 
 # --- OUTBOUND HELPER ---
