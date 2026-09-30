@@ -1,3 +1,5 @@
+from services.scheduler_service import schedule_test_task, scheduler
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from services.discord_service import send_to_channel
@@ -28,6 +30,11 @@ async def send_message(payload: SendMessageRequest):
     if not success:
         raise HTTPException(status_code=500, detail="Failed to deliver message to Discord channel.")
 
+    # Schedule the next job for 1 hour later
+    schedule_test_task(2, "Kindly Reply to this message.")  # Add the 1-hour test job
+    scheduler.start()
+    print("Scheduler started!")
+
     return {"status": "success", "message_sent": payload.content}
 
 
@@ -41,6 +48,10 @@ async def receive_message(payload: ReceiveMessageRequest):
     print(f"From: {payload.author}")
     print(f"Content: {payload.content}")
     print(f"Channel ID: {payload.channel_id}\n")
+
+    if scheduler.get_job("send_message_job"):
+        print("✅ Cancelling the scheduled job since a reply was received.")
+        scheduler.remove_job("send_message_job")
 
     # Put your business logic here (e.g., database logging, command processing, AI triggers)
 

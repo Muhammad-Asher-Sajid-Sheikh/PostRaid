@@ -16,13 +16,16 @@ async def sendMessage(msg: str):
         
     print("✅ Message successfully sent to Discord channel!")
 
-def schedule_test_task():
-    run_time = datetime.now() + timedelta(seconds=10)
+    
+
+def schedule_test_task(waitForHours, message):
+    run_time = datetime.now() + timedelta(hours = waitForHours)
     
     scheduler.add_job(
         sendMessage,
         'date',
         run_date=run_time,
-        args=["acknowledge"]
+        args=[message],
+        id = "send_message_job"
     )
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏱️ Job scheduled for 10 seconds from now ({run_time.strftime('%H:%M:%S')}).")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏱️ Job scheduled for {waitForHours} hours from now ({run_time.strftime('%H:%M:%S')}).")

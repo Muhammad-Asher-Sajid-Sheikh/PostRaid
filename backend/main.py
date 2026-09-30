@@ -13,9 +13,9 @@ async def lifespan(app: FastAPI):
     print("FastAPI running... Discord listener active.")
 
     # 2. Schedule and start the background scheduler
-    schedule_test_task()  # Add the 10-second test job
-    scheduler.start()
-    print("Scheduler started!")
+    # schedule_test_task(1, "Test message")  # Add the 1-hour test job
+    # scheduler.start()
+    # print("Scheduler started!")
     
     # Pause execution here while FastAPI app runs
     yield
