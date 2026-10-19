@@ -52,7 +52,7 @@ workflow.add_edge("tools", "agent")
 app = workflow.compile()
 
 
-def call_agent(data: str) -> str:
+def call_agent(data: str) -> list[str]:
     """
     Main entry point to run the agent flow and get the text output.
     """
@@ -67,5 +67,6 @@ def call_agent(data: str) -> str:
     # Run the graph until completion
     final_state = app.invoke({"messages": initial_messages})
 
+    final_response = llm.invoke(f'You are an AI assistant. Summarize the following conversation and tool outputs into a concise response:\n{final_state["messages"][-1].content}')
     # Return content from the final message in state
-    return final_state["messages"][-1].content
+    return [final_state["messages"][-1].content, final_response.text]

@@ -1,11 +1,14 @@
-from services.scheduler_service import schedule_test_task, scheduler
+from services.scheduler_service import schedule_test_task, scheduler, delete_scheduled_job
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from services.discord_service import send_to_channel
 
+from Agent.agent import call_agent
+
 router = APIRouter(tags=["Discord Messaging"])
 
+MessageCount = 0  # Global variable to track the number of messages sent
 
 # Request model for sending outbound messages
 class SendMessageRequest(BaseModel):
@@ -30,10 +33,21 @@ async def send_message(payload: SendMessageRequest):
     if not success:
         raise HTTPException(status_code=500, detail="Failed to deliver message to Discord channel.")
 
-    # Schedule the next job for 1 hour later
-    schedule_test_task(2, "Kindly Reply to this message.")  # Add the 1-hour test job
-    scheduler.start()
-    print("Scheduler started!")
+    if MessageCount <= 0:
+        # Schedule the next job for 2 hours later
+        schedule_test_task(2, "Kindly Reply to this message.")  # Add the 2-hour test job
+        scheduler.start()
+        print("Scheduler started!")
+        MessageCount += 1
+    elif MessageCount > 2:
+        schedule_test_task(2, "Kindly Reply to this message. After this the post will be deleted.")  # Add the 2-hour test job
+        scheduler.start()
+        print("Last Scheduler started!")
+        MessageCount += 1
+    else:
+        print("No action taken. Moving on to the next post.")
+        delete_scheduled_job("send_message_job")
+        MessageCount = 0
 
     return {"status": "success", "message_sent": payload.content}
 
@@ -52,6 +66,12 @@ async def receive_message(payload: ReceiveMessageRequest):
     if scheduler.get_job("send_message_job"):
         print("✅ Cancelling the scheduled job since a reply was received.")
         scheduler.remove_job("send_message_job")
+
+    # Call the agent to process the inbound message and determine next steps
+    agent_response = call_agent(payload.content)
+    print(f"Agent Response: {agent_response}")
+    response = await send_to_channel(agent_response[1])
+
 
     # Put your business logic here (e.g., database logging, command processing, AI triggers)
 

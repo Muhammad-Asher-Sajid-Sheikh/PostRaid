@@ -29,3 +29,11 @@ def schedule_test_task(waitForHours, message):
         id = "send_message_job"
     )
     print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏱️ Job scheduled for {waitForHours} hours from now ({run_time.strftime('%H:%M:%S')}).")
+
+def delete_scheduled_job(id: str):
+    """Deletes the scheduled job if it exists."""
+    if scheduler.get_job(id):
+        scheduler.remove_job(id)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🗑️ Scheduled job deleted.")
+    else:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ No scheduled job found to delete.")
