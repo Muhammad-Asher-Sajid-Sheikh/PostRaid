@@ -6,21 +6,23 @@ from langchain_core.prompts import ChatPromptTemplate
 from huggingface_hub import InferenceClient
 from PIL import Image
 
-
 from qdrant_client import QdrantClient
 from sentence_transformers import CrossEncoder
-from llama_index.core import VectorStoreIndex
+from llama_index.core import VectorStoreIndex, Settings
 from llama_index.vector_stores.qdrant import QdrantVectorStore
-
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 load_dotenv()
 
+# Configure local embedding model for LlamaIndex to avoid OpenAI API key errors
+Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
+
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
-COLLECTION_NAME = os.getenv("COLLECTION_NAME")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "PostRaidCollection")
 
 # Initialize singletons for performance
-client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+client = client = QdrantClient(path="./qdrant_local_storage") #QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 vector_store = QdrantVectorStore(client=client, collection_name=COLLECTION_NAME)
 index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
 retriever = index.as_retriever(similarity_top_k=5)
@@ -40,53 +42,41 @@ def rag_tool(query: str) -> str:
     Returns:
         str: Reranked contextual text excerpts from internal documents.
     """
-    # 1. Retrieve top-k documents from Qdrant
     retrieved_nodes = retriever.retrieve(query)
-
     if not retrieved_nodes:
         return "No relevant policies or documents were found."
 
-    # 2. Pair query with node contents for CrossEncoder reranking
     pairs = [[query, node.node.get_content()] for node in retrieved_nodes]
     scores = reranker.predict(pairs)
 
-    # 3. Sort by reranker relevance score
     ranked_nodes = sorted(zip(retrieved_nodes, scores), key=lambda x: x[1], reverse=True)
-
-    # 4. Extract top 3 reranked contexts
     top_context = "\n\n---\n\n".join(
         [node.node.get_content() for node, score in ranked_nodes[:3]]
     )
-
     return top_context
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
-IMAGE_DIR = "../images"
+# Point to Agent/images explicitly
+IMAGE_DIR = os.path.join(current_dir, "../images")
 
-def improvisePrompt(Prompt):
+def improvisePrompt(prompt_text: str) -> str:
     llm = ChatGoogleGenerativeAI(
-        api_key = os.getenv("GEMINI_API_KEY"),
-        model = os.getenv("GEMINI_MODEL"),
-        temperature = 0.3
+        api_key=os.getenv("GEMINI_API_KEY"),
+        model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+        temperature=0.3
     )
 
-    promptTemplate = ChatPromptTemplate(
-        [
-            ("User", "You are a professional Prompt Engineer with a 10+ years of experience."),
-            ("System", """
-            Improvise the prompt : 
-            {Prompt} 
+    prompt_template = ChatPromptTemplate.from_messages([
+        ("user", "You are a professional Prompt Engineer with 10+ years of experience."),
+        ("system", "Improvise the prompt: {Prompt} for generating an image using AI.")
+    ])
 
-            for generating an image using AI.  
-            """)
-        ]
-    )
+    formatted_prompt = prompt_template.invoke({"Prompt": prompt_text})
+    response = llm.invoke(formatted_prompt)
+    
+    return response.content
 
-    prompt = promptTemplate.invoke(Prompt = Prompt)
-
-    response = llm.invoke(prompt)
-
-    return response.text
 
 @tool
 def generate_image(ppt: str, image_name: str) -> str:
@@ -95,7 +85,7 @@ def generate_image(ppt: str, image_name: str) -> str:
     Deletes existing images before creating a new one.
 
     Args:
-        prompt (str): The text description of the image to generate.
+        ppt (str): The text description of the image to generate.
         image_name (str): The filename to save the image as (e.g., 'output.png').
 
     Returns:
@@ -108,24 +98,20 @@ def generate_image(ppt: str, image_name: str) -> str:
     os.makedirs(IMAGE_DIR, exist_ok=True)
     image_extensions = ('.png', '.jpg', '.jpeg')
 
-    # Remove previous images if present
     for filename in os.listdir(IMAGE_DIR):
         if filename.lower().endswith(image_extensions):
             os.remove(os.path.join(IMAGE_DIR, filename))
 
-    client = InferenceClient(token=token)
-
-    prompt = improvisePrompt(ppt)
+    hf_client = InferenceClient(token=token)
+    improved_prompt = improvisePrompt(ppt)
     
-    # Generate image using raw prompt string and a valid model target
-    image = client.text_to_image(
-        prompt=prompt,
-        model= os.getenv("MODEL_NAME")
+    image = hf_client.text_to_image(
+        prompt=improved_prompt,
+        model=os.getenv("MODEL_NAME", "stabilityai/stable-diffusion-xl-base-1.0")
     )
 
     save_path = os.path.join(IMAGE_DIR, image_name)
     image.save(save_path)
-
     return f"Image successfully saved to {save_path}"
 
 
@@ -135,10 +121,10 @@ def update_image(ppt: str, source_image_name: str, output_image_name: str, stren
     Update/modify an existing image based on a prompt using Hugging Face's Image-to-Image pipeline.
 
     Args:
-        prompt (str): Description of the updates or modifications to apply.
-        source_image_name (str): The filename of the base image inside the images folder (e.g., 'input.png').
-        output_image_name (str): The filename to save the updated image as (e.g., 'updated.png').
-        strength (float): Transformation intensity from 0.0 (no change) to 1.0 (complete overwrite). Default 0.6.
+        ppt (str): Description of the updates or modifications to apply.
+        source_image_name (str): The filename of the base image inside the images folder.
+        output_image_name (str): The filename to save the updated image as.
+        strength (float): Transformation intensity from 0.0 to 1.0. Default 0.6.
 
     Returns:
         str: Message confirming saved image path.
@@ -151,25 +137,21 @@ def update_image(ppt: str, source_image_name: str, output_image_name: str, stren
     if not os.path.exists(source_path):
         return f"Error: Source image '{source_image_name}' not found in {IMAGE_DIR}."
 
-    # Open the existing source image
     base_image = Image.open(source_path)
+    hf_client = InferenceClient(token=token)
+    improved_prompt = improvisePrompt(ppt)
 
-    client = InferenceClient(token=token)
-
-    prompt = improvisePrompt(ppt)
-
-    # Perform image-to-image modification
-    updated_image = client.image_to_image(
+    updated_image = hf_client.image_to_image(
         image=base_image,
-        prompt=prompt,
+        prompt=improved_prompt,
         strength=strength,
         model="stabilityai/stable-diffusion-xl-refiner-1.0"
     )
 
     output_path = os.path.join(IMAGE_DIR, output_image_name)
     updated_image.save(output_path)
-
     return f"Updated image successfully saved to {output_path}"
+
 
 @tool
 def delete_image() -> str:
@@ -190,3 +172,39 @@ def delete_image() -> str:
     return "All images successfully deleted."
 
 
+# if __name__ == "__main__":
+#     print("=== 1. Testing RAG Tool ===")
+#     try:
+#         rag_result = rag_tool.invoke({"query": "What is software development?"})
+#         print("RAG Result:\n", rag_result)
+#     except Exception as e:
+#         print("RAG Tool Error:", e)
+
+#     print("\n=== 2. Testing Image Generation Tool ===")
+#     try:
+#         gen_result = generate_image.invoke({
+#             "ppt": "A futuristic neon city skyline at night", 
+#             "image_name": "test_city.png"
+#         })
+#         print(gen_result)
+#     except Exception as e:
+#         print("Image Gen Error:", e)
+
+#     print("\n=== 3. Testing Update Image Tool ===")
+#     try:
+#         update_result = update_image.invoke({
+#             "ppt": "Add flying spaceships in the sky", 
+#             "source_image_name": "test_city.png", 
+#             "output_image_name": "test_city_updated.png", 
+#             "strength": 0.6
+#         })
+#         print(update_result)
+#     except Exception as e:
+#         print("Update Image Error:", e)
+
+#     print("\n=== 4. Testing Delete Image Tool ===")
+#     try:
+#         delete_result = delete_image.invoke({})
+#         print(delete_result)
+#     except Exception as e:
+#         print("Delete Image Error:", e)

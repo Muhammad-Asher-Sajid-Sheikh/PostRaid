@@ -70,3 +70,11 @@ def call_agent(data: str) -> list[str]:
     final_response = llm.invoke(f'You are an AI assistant. Summarize the following conversation and tool outputs into a concise response:\n{final_state["messages"][-1].content}')
     # Return content from the final message in state
     return [final_state["messages"][-1].content, final_response.text]
+
+
+if __name__ == "__main__":
+    # Example usage
+    user_input = "Find the latest internal policy on remote work and generate an image representing it."
+    outputs = call_agent(user_input)
+    print("Final Output:", outputs[0])
+    print("Summary:", outputs[1])

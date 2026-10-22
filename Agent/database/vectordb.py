@@ -1,21 +1,24 @@
 import os
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from llama_index.core import Document, VectorStoreIndex, StorageContext
+from llama_index.core import Document, VectorStoreIndex, StorageContext, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.qdrant import QdrantVectorStore
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 load_dotenv()
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
 # Use underscore and provide a default fallback string
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "MyCollection")
+COLLECTION_NAME = os.getenv("COLLECTION_NAME", "PostRaidCollection")
+
+Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en-v1.5")
 
 def initialize_vector_db():
     """Loads text into Document objects, splits into nodes, and populates Qdrant."""
     print("Connecting to Qdrant...")
-    client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+    client = QdrantClient(path="./qdrant_local_storage") #QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
     
     vector_store = QdrantVectorStore(client=client, collection_name=COLLECTION_NAME)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
@@ -41,6 +44,11 @@ Organizations are also adopting zero trust security architectures based on the p
 
 Succeeding in the IT field requires a balance of technical and soft skills. On the technical side, proficiency in major programming or scripting languages, a solid understanding of networking concepts like TCP/IP and firewalls, and experience with version control systems like Git are essential. Equally important are soft skills: analytical problem-solving to debug complex system failures, adaptability to learn evolving tech stacks, and clear communication to translate technical concepts for business stakeholders.
 
+
+Company Remote Work Policy:
+Employees are permitted to work remotely up to three days per week with manager approval. 
+Core working hours are from 10:00 AM to 4:00 PM local time. All remote employees must ensure 
+a secure internet connection and use company-approved VPNs.
 '''
 
     documents = [Document(text=raw_text, metadata={"department": "IT"})]
